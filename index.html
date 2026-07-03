@@ -117,7 +117,25 @@
   <!-- ② カット -->
   <section class="card" id="trimCard" style="display:none">
     <h2><span class="num">2</span> カットする（いらない部分を切る）</h2>
-    <p class="hint">クリップをえらんで「ここから」「ここまで」で使う範囲を決めます。同じ動画から2か所使いたいときは「複製」してね。</p>
+    <p class="hint">おすすめは「AIおまかせカット」。動画の中身をAIが見て、いいところだけ残して自動でカットします。</p>
+    <div class="row">
+      <div style="flex:2;min-width:200px">
+        <button class="btn" id="aiCutBtn" onclick="aiCut()" style="width:100%">🤖 AIおまかせカット（ハイライトだけ残す）</button>
+      </div>
+      <div>
+        <label style="margin-top:0">仕上がりの長さ</label>
+        <select id="cutTarget">
+          <option value="auto">おまかせ</option>
+          <option value="15">約15秒（リール向け）</option>
+          <option value="30">約30秒</option>
+          <option value="60">約60秒</option>
+        </select>
+      </div>
+    </div>
+    <div id="aiCutMsg"></div>
+    <details style="margin-top:12px" id="manualTrim" open>
+    <summary>✋ 自分でカットする（微調整もここ）</summary>
+    <p class="hint" style="margin-top:8px">クリップをえらんで「ここから」「ここまで」で使う範囲を決めます。同じ動画から2か所使いたいときは「複製」してね。</p>
     <div id="trimVideoBox"></div>
     <div class="timebar">
       <span style="font-size:13px;font-weight:700">開始</span>
@@ -135,6 +153,7 @@
       <button class="btn sm" onclick="previewTrim()">✂️ カット後の区間を再生</button>
     </div>
     <p class="muted" style="margin:8px 0 0">この範囲だけが最終動画に使われます：<b id="trimInfo"></b></p>
+    </details>
   </section>
 
   <!-- ③ テロップ -->
@@ -464,6 +483,94 @@ function renderTelops(){
     </div>`).join("");
 }
 
+/* ---- AIおまかせカット（Gemini） ---- */
+let aiCutBackup = null;
+async function aiCut(){
+  const msg = $("aiCutMsg");
+  if (!clips.length){ msg.innerHTML = `<p class="err">先に動画を追加してね</p>`; return; }
+  const key = getKey();
+  if (!key){ msg.innerHTML = `<p class="err">③の「AI機能の設定」でGemini APIキーを設定してね（無料・1回だけ）</p>`; return; }
+  const btn = $("aiCutBtn");
+  btn.disabled = true; btn.innerHTML = `<span class="spin"></span> AIが動画を見ています…（少し待ってね）`;
+  msg.innerHTML = "";
+  try{
+    // 元動画（トリミング前の全体）からコマを抜き出す
+    const sources = [...new Map(clips.map(c=>[c.url, c])).values()]; // 複製は1本にまとめる
+    const budget = 16;
+    const per = Math.max(4, Math.floor(budget / sources.length));
+    const frames = [];
+    for (let si = 0; si < sources.length; si++){
+      const c = sources[si];
+      const n = Math.min(per, Math.max(3, Math.ceil(c.duration / 2)));
+      for (let i = 0; i < n; i++){
+        const t = c.duration * (i + 0.5) / n;
+        await seekTo(c.video, t);
+        const cv = document.createElement("canvas");
+        const scale = 480 / Math.max(c.video.videoWidth, 1);
+        cv.width = Math.max(2, Math.round(c.video.videoWidth * scale));
+        cv.height = Math.max(2, Math.round(c.video.videoHeight * scale));
+        cv.getContext("2d").drawImage(c.video, 0, 0, cv.width, cv.height);
+        frames.push({si, t, img: cv.toDataURL("image/jpeg", .6).split(",")[1]});
+      }
+    }
+    const target = $("cutTarget").value;
+    const totalSrc = sources.reduce((s,c)=>s+c.duration, 0);
+    const targetText = target === "auto"
+      ? `元の長さ（合計${totalSrc.toFixed(0)}秒）の2〜4割くらい（最大60秒）`
+      : `合計 約${target}秒`;
+    const parts = [{text:
+`あなたは日本のSNS動画（リール）の編集者です。${sources.length}本の動画から等間隔で抜き出したコマを渡します。
+${sources.map((c,i)=>`動画${i+1}（全体 ${c.duration.toFixed(1)}秒）`).join("、")}。
+各コマのラベル: ${frames.map(f=>`動画${f.si+1}の${f.t.toFixed(1)}秒`).join(", ")}。
+見どころ（動きがある・変化がある・被写体がよく見える瞬間）だけを残すハイライトカットを作ってください。
+仕上がりは${targetText}。各区間は2〜8秒。同じ動画内では時間順。JSON配列だけを返してください。
+形式: [{"clip":1,"start":2.0,"end":6.5}]
+ルール: clipは動画番号（1〜${sources.length}）・startとendはその動画の長さの範囲内・区間同士は重ならない。`}];
+    for (const f of frames) parts.push({inline_data:{mime_type:"image/jpeg", data:f.img}});
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({contents:[{parts}]})
+    });
+    if (!r.ok) throw new Error("APIエラー（" + r.status + "）キーが正しいか確認してね");
+    const j = await r.json();
+    const text = (((j.candidates||[])[0]||{}).content||{}).parts?.map(p=>p.text||"").join("") || "";
+    const m = text.match(/\[[\s\S]*\]/);
+    if (!m) throw new Error("AIの返答を読み取れませんでした。もう一度試してね");
+    let segs = JSON.parse(m[0])
+      .map(s=>({si: Math.min(Math.max((+s.clip||1)-1, 0), sources.length-1), start: Math.max(0, +s.start||0), end: +s.end||0}))
+      .filter(s=>{ const d = sources[s.si].duration; s.end = Math.min(s.end, d); return s.end - s.start >= 1; })
+      .sort((a,b)=> a.si - b.si || a.start - b.start);
+    if (!segs.length) throw new Error("ハイライトを見つけられませんでした。手動カットを使ってみてね");
+    // 適用（元に戻せるようバックアップ）
+    aiCutBackup = clips;
+    clips = segs.map((s,i)=>{
+      const src = sources[s.si];
+      return {...src, id: uid++, start: s.start, end: s.end,
+        name: src.name.replace(/（コピー）$/,"") + `（ハイライト${i+1}）`};
+    });
+    selectedClip = null;
+    selectClip(clips[0].id);
+    globalTime = 0;
+    renderClips(); refreshUI();
+    msg.innerHTML = `<p class="ok">できました！${segs.length}か所のハイライトを残して、合計 ${fmt(totalDuration())} になりました ✨
+      気に入らないところは下の「自分でカットする」で微調整してね</p>
+      <button class="mini" onclick="undoAiCut()">↩ カット前に戻す</button>`;
+  }catch(e){
+    msg.innerHTML = `<p class="err">${esc(e.message||String(e))}</p>`;
+  }finally{
+    btn.disabled = false; btn.innerHTML = "🤖 AIおまかせカット（ハイライトだけ残す）";
+  }
+}
+function undoAiCut(){
+  if (!aiCutBackup) return;
+  clips = aiCutBackup; aiCutBackup = null;
+  selectedClip = null;
+  if (clips.length) selectClip(clips[0].id);
+  globalTime = 0;
+  renderClips(); refreshUI();
+  $("aiCutMsg").innerHTML = `<p class="muted">カット前の状態に戻しました</p>`;
+}
+
 /* ---- AIテロップ案（Gemini） ---- */
 function saveKey(){
   localStorage.setItem("gemini_api_key", $("apiKey").value.trim());
@@ -656,6 +763,13 @@ function ensureAudio(){
 }
 
 /* ============ プレビュー再生 ============ */
+// rAFはタブが裏に回ると止まるので、タイマーと併用（書き出し中の画面切り替え対策）
+function nextTick(fn){
+  let called = false;
+  const once = ()=>{ if (!called){ called = true; clearTimeout(to); fn(); } };
+  const to = setTimeout(once, 40);
+  requestAnimationFrame(once);
+}
 $("seekBar").addEventListener("input", ()=>{
   stopPlayback();
   globalTime = parseFloat($("seekBar").value);
@@ -691,6 +805,12 @@ async function playSequence(from, record){
     await seekTo(c.video, c.start + localStart);
     try{ await c.video.play(); }catch(e){}
     if (rec && recorder.state === "paused") recorder.resume();
+    if (c.video.paused && !c.video.ended){
+      // 再生がブロックされた（自動再生制限など）→ 無限ループを避けて停止
+      playing = false;
+      $("playBtn").textContent = "▶ 再生";
+      break;
+    }
     await new Promise(res=>{
       const base = acc;
       function tick(){
@@ -703,7 +823,7 @@ async function playSequence(from, record){
         $("timeLabel").textContent = fmt(globalTime) + " / " + fmt(totalDuration());
         if (record && exporting) updateProg(globalTime);
         if (c.video.currentTime >= c.end - 0.03 || c.video.ended){ c.video.pause(); return res(); }
-        requestAnimationFrame(tick);
+        nextTick(tick);
       }
       tick();
     });
