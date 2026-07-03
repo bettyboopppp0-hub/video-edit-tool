@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI動画かんたん編集【カット・つなげる・テロップ】</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff; --panel:#ffffff; --line:#ececf1; --soft:#f7f7fb;
+    --ink:#1f2330; --sub:#6b7280; --accent:#7c6cf0; --accent2:#f06ca8;
+    --ok:#16a34a; --warn:#d97706; --radius:16px; --shadow:0 6px 24px rgba(20,20,40,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.7;-webkit-text-size-adjust:100%}
+  a{color:var(--accent)}
+  header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);padding:14px 18px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 16px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px}
+  .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));}
+  .tag{font-size:12px;color:var(--sub);font-weight:600}
+  main{padding:18px 0 80px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;margin:14px 0;box-shadow:var(--shadow)}
+  h2{font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .num{width:24px;height:24px;border-radius:8px;background:var(--soft);border:1px solid var(--line);
+    display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--accent)}
+  .hint{color:var(--sub);font-size:13px;margin:2px 0 12px}
+  label{font-size:13px;font-weight:700;display:block;margin:10px 0 4px}
+  input,textarea,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;
+    font-size:15px;font-family:inherit;background:#fff;color:var(--ink)}
+  input[type=range]{padding:0;height:28px;accent-color:var(--accent)}
+  input[type=color]{padding:2px;height:42px}
+  textarea{resize:vertical;min-height:60px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>*{flex:1;min-width:120px}
+  .btn{appearance:none;border:0;border-radius:12px;padding:12px 16px;font-size:15px;font-weight:800;
+    cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;
+    transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+  .btn:hover{filter:brightness(1.05)} .btn:active{transform:translateY(1px)}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;filter:grayscale(.3)}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn.sm{padding:7px 12px;font-size:13px;border-radius:10px}
+  .drop{border:2px dashed var(--line);border-radius:14px;padding:26px 14px;text-align:center;color:var(--sub);
+    cursor:pointer;transition:.15s;background:var(--soft)}
+  .drop.on{border-color:var(--accent);background:#f3f0ff;color:var(--accent)}
+  .clips{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+  .clip{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--soft);
+    display:flex;gap:12px;align-items:center;cursor:pointer;transition:.12s}
+  .clip.sel{border-color:var(--accent);background:#f3f0ff}
+  .clip img{width:88px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#000;flex-shrink:0}
+  .clip .in{flex:1;min-width:0}
+  .clip b{display:block;font-size:13.5px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .clip .len{font-size:12px;color:var(--sub)}
+  .clip .acts{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+  .mini{appearance:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 9px;
+    font-size:12px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .mini:hover{border-color:var(--accent);color:var(--accent)}
+  .mini.danger:hover{border-color:#dc2626;color:#dc2626}
+  video{max-width:100%;border-radius:12px;background:#000;display:block}
+  canvas.stage{max-width:100%;border:1px solid var(--line);border-radius:12px;display:block;background:#000;margin:0 auto}
+  .telop-item{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--soft);margin-top:10px}
+  .telop-item .head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .styles{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .style-chip{border:2px solid var(--line);border-radius:10px;padding:5px 12px;font-size:13px;cursor:pointer;
+    background:#fff;font-weight:800;transition:.12s}
+  .style-chip.sel{border-color:var(--accent)}
+  .st-outline{color:#fff;background:#555;text-shadow:1.5px 1.5px 0 #000,-1.5px 1.5px 0 #000,1.5px -1.5px 0 #000,-1.5px -1.5px 0 #000}
+  .st-yellow{color:#1f2330;background:#ffe94d}
+  .st-pink{color:#fff;background:#f06ca8}
+  .st-white{color:#e0447c;background:#fff;border-color:#f3c3d8!important}
+  .st-shadow{color:#fff;background:#777;text-shadow:2px 3px 4px rgba(0,0,0,.8)}
+  .muted{color:var(--sub);font-size:12px}
+  .err{color:#b91c1c;font-size:13px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:8px 10px;margin-top:8px}
+  .ok{color:var(--ok);font-size:13px;font-weight:700}
+  .spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;
+    animation:sp .7s linear infinite;display:inline-block}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .timebar{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .timebar input[type=range]{flex:1}
+  .tlabel{font-size:13px;font-weight:800;color:var(--sub);min-width:100px;text-align:right;font-variant-numeric:tabular-nums}
+  .prog{height:10px;background:var(--soft);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:10px}
+  .prog>div{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s}
+  details{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--soft);margin-top:10px}
+  summary{cursor:pointer;font-weight:700;font-size:14px}
+  .footer{text-align:center;color:var(--sub);font-size:12px;margin-top:24px}
+  .empty{color:var(--sub);font-size:13px;text-align:center;padding:14px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap brand">
+    <div class="logo"></div>
+    <div>
+      AI動画かんたん編集
+      <div class="tag">カット → つなげる → テロップ → 保存 がこれ1つで（完全無料・アプリ不要）</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ① 動画を追加 -->
+  <section class="card">
+    <h2><span class="num">1</span> 動画を追加する</h2>
+    <p class="hint">複数えらべます。上から順につながります（順番はあとから入れかえOK）。動画はこの端末の中だけで処理され、どこにも送信されません。</p>
+    <div class="drop" id="drop" onclick="fileInput.click()">
+      📹 ここをタップして動画をえらぶ（またはドラッグ＆ドロップ）
+    </div>
+    <input type="file" id="fileInput" accept="video/*" multiple style="display:none" />
+    <div class="clips" id="clipList"></div>
+  </section>
+
+  <!-- ② カット -->
+  <section class="card" id="trimCard" style="display:none">
+    <h2><span class="num">2</span> カットする（いらない部分を切る）</h2>
+    <p class="hint">クリップをえらんで「ここから」「ここまで」で使う範囲を決めます。同じ動画から2か所使いたいときは「複製」してね。</p>
+    <div id="trimVideoBox"></div>
+    <div class="timebar">
+      <span style="font-size:13px;font-weight:700">開始</span>
+      <input type="range" id="trimStart" min="0" max="100" step="0.05" value="0" />
+      <span class="tlabel" id="trimStartLabel">0:00.0</span>
+    </div>
+    <div class="timebar">
+      <span style="font-size:13px;font-weight:700">終了</span>
+      <input type="range" id="trimEnd" min="0" max="100" step="0.05" value="100" />
+      <span class="tlabel" id="trimEndLabel">0:00.0</span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost sm" onclick="setTrimFromCurrent('start')">▶ 今の位置を「開始」に</button>
+      <button class="btn ghost sm" onclick="setTrimFromCurrent('end')">⏹ 今の位置を「終了」に</button>
+      <button class="btn sm" onclick="previewTrim()">✂️ カット後の区間を再生</button>
+    </div>
+    <p class="muted" style="margin:8px 0 0">この範囲だけが最終動画に使われます：<b id="trimInfo"></b></p>
+  </section>
+
+  <!-- ③ テロップ -->
+  <section class="card" id="telopCard" style="display:none">
+    <h2><span class="num">3</span> テロップを入れる</h2>
+    <p class="hint">「何秒から何秒まで・どこに・どんな文字」を決めるだけ。時間はつなげたあとの全体の時間です。</p>
+    <div class="row">
+      <button class="btn ghost" onclick="addTelop()">＋ テロップを追加</button>
+      <button class="btn" id="aiTelopBtn" onclick="aiTelop()">🤖 AIにテロップ案をつくってもらう</button>
+    </div>
+    <div id="aiTelopMsg"></div>
+    <div id="telopList"></div>
+    <details style="margin-top:12px">
+      <summary>🔑 AI機能の設定（Gemini APIキー・無料）</summary>
+      <p class="hint" style="margin-top:8px">インスタツール・楽天ROOMツールと同じキーが使えます。キーはこの端末にのみ保存されます。<br>
+      取得先 → <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio（無料）</a></p>
+      <input id="apiKey" type="password" placeholder="AIza... を貼り付け" autocomplete="off" />
+      <div style="margin-top:8px"><button class="btn sm" onclick="saveKey()">保存する</button> <span id="keyMsg" class="ok"></span></div>
+    </details>
+  </section>
+
+  <!-- ④ プレビューと保存 -->
+  <section class="card" id="exportCard" style="display:none">
+    <h2><span class="num">4</span> プレビューして保存する</h2>
+    <p class="hint">仕上がりを確認してから「動画を保存」を押してね。保存には動画の長さと同じ時間がかかります（そのまま待っててOK）。</p>
+    <div class="row">
+      <div>
+        <label>サイズ</label>
+        <select id="outSize">
+          <option value="original">そのまま（元動画と同じ）</option>
+          <option value="916">縦型 9:16（リール・TikTok）</option>
+          <option value="11">正方形 1:1</option>
+          <option value="169">横型 16:9（YouTube）</option>
+        </select>
+      </div>
+      <div>
+        <label>おさめ方</label>
+        <select id="outFit">
+          <option value="contain">全部見せる（余白つき）</option>
+          <option value="cover">画面いっぱい（はみ出しカット）</option>
+        </select>
+      </div>
+      <div>
+        <label>余白の色</label>
+        <select id="outBg">
+          <option value="#000000">黒</option>
+          <option value="#ffffff">白</option>
+          <option value="#ffe4ee">パステルピンク</option>
+          <option value="#e8f4ff">パステルブルー</option>
+        </select>
+      </div>
+    </div>
+    <canvas class="stage" id="stage" width="640" height="360" style="margin-top:12px"></canvas>
+    <div class="timebar">
+      <button class="btn sm" id="playBtn" onclick="togglePlay()">▶ 再生</button>
+      <input type="range" id="seekBar" min="0" max="100" step="0.05" value="0" />
+      <span class="tlabel" id="timeLabel">0:00.0 / 0:00.0</span>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="exportBtn" onclick="exportVideo()">💾 動画を保存する</button>
+      <button class="btn ghost" id="cancelBtn" onclick="cancelExport()" style="display:none">中止</button>
+    </div>
+    <div class="prog" id="progWrap" style="display:none"><div id="progBar"></div></div>
+    <div id="exportMsg"></div>
+    <div id="resultBox" style="margin-top:12px"></div>
+  </section>
+
+  <p class="footer">動画はぜんぶこの端末の中だけで処理されます（アップロード・外部送信なし）🔒</p>
+</main>
+
+<script>
+"use strict";
+/* ============ 状態 ============ */
+let clips = [];          // {id,name,url,video,duration,start,end,thumb}
+let telops = [];         // {id,text,start,end,pos,style,size}
+let selectedClip = null;
+let uid = 1;
+let playing = false;     // プレビュー再生中
+let exporting = false;
+let globalTime = 0;
+
+const $ = id => document.getElementById(id);
+const stage = $("stage"), ctx = stage.getContext("2d");
+const fmt = t => { t=Math.max(0,t); const m=Math.floor(t/60), s=(t%60); return m+":"+(s<10?"0":"")+s.toFixed(1); };
+
+/* ============ ① 動画の追加 ============ */
+const drop = $("drop"), fileInput = $("fileInput");
+fileInput.addEventListener("change", e => addFiles(e.target.files));
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("on"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("on"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("on"); addFiles(e.dataTransfer.files); });
+
+async function addFiles(files){
+  for (const f of files){
+    if (!f.type.startsWith("video/") && !/\.(mp4|mov|webm|m4v)$/i.test(f.name)) continue;
+    const url = URL.createObjectURL(f);
+    const video = document.createElement("video");
+    video.src = url; video.playsInline = true; video.preload = "auto";
+    video.setAttribute("playsinline","");
+    try { await waitMeta(video); } catch(e){ alert(f.name + " を読み込めませんでした"); continue; }
+    const clip = { id: uid++, name: f.name, url, video,
+      duration: video.duration, start: 0, end: video.duration, thumb: "" };
+    clips.push(clip);
+    makeThumb(clip);
+    if (!selectedClip) selectClip(clip.id);
+  }
+  fileInput.value = "";
+  renderClips(); refreshUI();
+}
+function waitMeta(v){
+  return new Promise((res,rej)=>{
+    const to = setTimeout(()=> rej(new Error("timeout")), 15000);
+    const finish = ()=>{ clearTimeout(to); v.currentTime = 0; res(); };
+    const check = ()=>{
+      if (isFinite(v.duration) && v.duration > 0) return finish();
+      // 一部のwebmはdurationが未確定（Infinity/0）なので末尾にシークして確定させる
+      const dc = ()=>{ if (isFinite(v.duration) && v.duration > 0){ v.removeEventListener("durationchange", dc); finish(); } };
+      v.addEventListener("durationchange", dc);
+      v.currentTime = 1e7;
+    };
+    if (v.readyState >= 1) check();
+    else {
+      v.addEventListener("loadedmetadata", check, {once:true});
+      v.addEventListener("error", ()=>{ clearTimeout(to); rej(new Error("load error")); }, {once:true});
+    }
+  });
+}
+async function makeThumb(clip){
+  try{
+    await seekTo(clip.video, Math.min(0.1, clip.duration/2));
+    const c = document.createElement("canvas");
+    c.width = 176; c.height = 120;
+    drawFit(c.getContext("2d"), clip.video, c.width, c.height, "cover", "#000");
+    clip.thumb = c.toDataURL("image/jpeg", .7);
+    renderClips();
+  }catch(e){}
+}
+function seekTo(v, t){
+  return new Promise(res=>{
+    const done = ()=>{ v.removeEventListener("seeked", done); res(); };
+    if (Math.abs(v.currentTime - t) < 0.02 && v.readyState >= 2) return res();
+    v.addEventListener("seeked", done);
+    v.currentTime = Math.min(Math.max(t, 0), Math.max(0, v.duration - 0.05));
+    setTimeout(done, 2000);
+  });
+}
+
+function renderClips(){
+  const box = $("clipList");
+  if (!clips.length){ box.innerHTML = ""; return; }
+  box.innerHTML = clips.map((c,i)=>`
+    <div class="clip ${selectedClip===c.id?'sel':''}" onclick="selectClip(${c.id})">
+      ${c.thumb ? `<img src="${c.thumb}">` : `<img>`}
+      <div class="in">
+        <b>${i+1}. ${esc(c.name)}</b>
+        <span class="len">使う範囲 ${fmt(c.start)}〜${fmt(c.end)}（${fmt(c.end-c.start)}）</span>
+        <div class="acts" onclick="event.stopPropagation()">
+          <button class="mini" onclick="moveClip(${c.id},-1)">⬆ 上へ</button>
+          <button class="mini" onclick="moveClip(${c.id},1)">⬇ 下へ</button>
+          <button class="mini" onclick="dupClip(${c.id})">📄 複製</button>
+          <button class="mini danger" onclick="delClip(${c.id})">🗑 削除</button>
+        </div>
+      </div>
+    </div>`).join("");
+}
+function esc(s){ return s.replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+function moveClip(id, dir){
+  const i = clips.findIndex(c=>c.id===id);
+  const j = i + dir;
+  if (j < 0 || j >= clips.length) return;
+  [clips[i], clips[j]] = [clips[j], clips[i]];
+  renderClips(); refreshUI();
+}
+function dupClip(id){
+  const c = clips.find(x=>x.id===id);
+  const video = document.createElement("video");
+  video.src = c.url; video.playsInline = true; video.preload = "auto";
+  video.setAttribute("playsinline","");
+  const copy = {...c, id: uid++, video, name: c.name + "（コピー）"};
+  clips.splice(clips.findIndex(x=>x.id===id)+1, 0, copy);
+  renderClips(); refreshUI();
+}
+function delClip(id){
+  const i = clips.findIndex(c=>c.id===id);
+  if (i < 0) return;
+  clips.splice(i,1);
+  if (selectedClip === id) selectedClip = null;
+  if (!selectedClip && clips.length) selectClip(clips[0].id); else { renderClips(); refreshUI(); }
+}
+
+/* ============ ② カット ============ */
+function selectClip(id){
+  selectedClip = id;
+  const c = clips.find(x=>x.id===id);
+  if (!c) return;
+  const box = $("trimVideoBox");
+  box.innerHTML = "";
+  c.video.controls = true;
+  c.video.style.width = "100%";
+  c.video.style.maxHeight = "340px";
+  box.appendChild(c.video);
+  $("trimStart").max = $("trimEnd").max = c.duration;
+  $("trimStart").value = c.start;
+  $("trimEnd").value = c.end;
+  updateTrimLabels();
+  renderClips(); refreshUI();
+}
+$("trimStart").addEventListener("input", ()=>{
+  const c = cur(); if (!c) return;
+  c.start = Math.min(parseFloat($("trimStart").value), c.end - 0.2);
+  $("trimStart").value = c.start;
+  seekTo(c.video, c.start);
+  updateTrimLabels(); renderClips();
+});
+$("trimEnd").addEventListener("input", ()=>{
+  const c = cur(); if (!c) return;
+  c.end = Math.max(parseFloat($("trimEnd").value), c.start + 0.2);
+  $("trimEnd").value = c.end;
+  seekTo(c.video, c.end);
+  updateTrimLabels(); renderClips();
+});
+function cur(){ return clips.find(x=>x.id===selectedClip); }
+function updateTrimLabels(){
+  const c = cur(); if (!c) return;
+  $("trimStartLabel").textContent = fmt(c.start);
+  $("trimEndLabel").textContent = fmt(c.end);
+  $("trimInfo").textContent = fmt(c.start) + " 〜 " + fmt(c.end) + "（" + fmt(c.end-c.start) + "）";
+}
+function setTrimFromCurrent(which){
+  const c = cur(); if (!c) return;
+  const t = c.video.currentTime;
+  if (which === "start") c.start = Math.min(t, c.end - 0.2);
+  else c.end = Math.max(t, c.start + 0.2);
+  $("trimStart").value = c.start; $("trimEnd").value = c.end;
+  updateTrimLabels(); renderClips();
+}
+async function previewTrim(){
+  const c = cur(); if (!c) return;
+  await seekTo(c.video, c.start);
+  c.video.play();
+  const stop = ()=>{
+    if (c.video.currentTime >= c.end){ c.video.pause(); c.video.removeEventListener("timeupdate", stop); }
+  };
+  c.video.addEventListener("timeupdate", stop);
+}
+
+/* ============ ③ テロップ ============ */
+const STYLES = [
+  {id:"outline", name:"しろ文字", cls:"st-outline"},
+  {id:"yellow",  name:"黄色マーカー", cls:"st-yellow"},
+  {id:"pink",    name:"ピンク帯", cls:"st-pink"},
+  {id:"white",   name:"白帯", cls:"st-white"},
+  {id:"shadow",  name:"影つき", cls:"st-shadow"},
+];
+function addTelop(data){
+  const total = totalDuration();
+  telops.push({
+    id: uid++,
+    text: (data && data.text) || "ここにテロップ",
+    start: data ? Math.max(0, +data.start || 0) : 0,
+    end: data ? Math.min(total || 3, +data.end || 3) : Math.min(total || 3, 3),
+    pos: (data && data.pos) || "bottom",
+    style: (data && data.style) || "outline",
+    size: "m",
+  });
+  renderTelops();
+}
+function delTelop(id){ telops = telops.filter(t=>t.id!==id); renderTelops(); }
+function updTelop(id, key, val){
+  const t = telops.find(x=>x.id===id); if (!t) return;
+  if (key==="start"||key==="end") val = Math.max(0, parseFloat(val)||0);
+  t[key] = val;
+  if (key!=="text") renderTelops();
+  drawAt(globalTime);
+}
+function telopNow(id, which){
+  updTelop(id, which, globalTime.toFixed(1));
+}
+function renderTelops(){
+  const box = $("telopList");
+  if (!telops.length){ box.innerHTML = `<p class="empty">まだテロップがありません。「＋ テロップを追加」か「🤖 AI」で作ってね</p>`; return; }
+  box.innerHTML = telops.map((t,i)=>`
+    <div class="telop-item">
+      <div class="head">
+        <b style="font-size:14px">テロップ ${i+1}</b>
+        <button class="mini danger" onclick="delTelop(${t.id})">🗑 削除</button>
+      </div>
+      <textarea rows="2" oninput="updTelop(${t.id},'text',this.value)" placeholder="文字を入力（改行OK）">${esc(t.text)}</textarea>
+      <div class="row">
+        <div>
+          <label>開始（秒）</label>
+          <div style="display:flex;gap:6px">
+            <input type="number" step="0.1" min="0" value="${t.start}" onchange="updTelop(${t.id},'start',this.value)">
+            <button class="mini" title="プレビューの今の位置" onclick="telopNow(${t.id},'start')">⏱今</button>
+          </div>
+        </div>
+        <div>
+          <label>終了（秒）</label>
+          <div style="display:flex;gap:6px">
+            <input type="number" step="0.1" min="0" value="${t.end}" onchange="updTelop(${t.id},'end',this.value)">
+            <button class="mini" title="プレビューの今の位置" onclick="telopNow(${t.id},'end')">⏱今</button>
+          </div>
+        </div>
+        <div>
+          <label>位置</label>
+          <select onchange="updTelop(${t.id},'pos',this.value)">
+            <option value="top" ${t.pos==="top"?"selected":""}>上</option>
+            <option value="center" ${t.pos==="center"?"selected":""}>まんなか</option>
+            <option value="bottom" ${t.pos==="bottom"?"selected":""}>下</option>
+          </select>
+        </div>
+        <div>
+          <label>大きさ</label>
+          <select onchange="updTelop(${t.id},'size',this.value)">
+            <option value="s" ${t.size==="s"?"selected":""}>小</option>
+            <option value="m" ${t.size==="m"?"selected":""}>中</option>
+            <option value="l" ${t.size==="l"?"selected":""}>大</option>
+          </select>
+        </div>
+      </div>
+      <label>デザイン</label>
+      <div class="styles">
+        ${STYLES.map(s=>`<span class="style-chip ${s.cls} ${t.style===s.id?'sel':''}"
+          onclick="updTelop(${t.id},'style','${s.id}')">${s.name}</span>`).join("")}
+      </div>
+    </div>`).join("");
+}
+
+/* ---- AIテロップ案（Gemini） ---- */
+function saveKey(){
+  localStorage.setItem("gemini_api_key", $("apiKey").value.trim());
+  $("keyMsg").textContent = "保存しました ✓";
+  setTimeout(()=> $("keyMsg").textContent = "", 2500);
+}
+function getKey(){ return ($("apiKey").value || localStorage.getItem("gemini_api_key") || "").trim(); }
+
+async function aiTelop(){
+  const msg = $("aiTelopMsg");
+  if (!clips.length){ msg.innerHTML = `<p class="err">先に動画を追加してね</p>`; return; }
+  const key = getKey();
+  if (!key){ msg.innerHTML = `<p class="err">下の「AI機能の設定」でGemini APIキーを設定してね（無料）</p>`; return; }
+  const btn = $("aiTelopBtn");
+  btn.disabled = true; btn.innerHTML = `<span class="spin"></span> 動画を見ています…`;
+  msg.innerHTML = "";
+  try{
+    const total = totalDuration();
+    const n = Math.min(6, Math.max(3, Math.round(total/5)));
+    const frames = [];
+    for (let i=0; i<n; i++){
+      const t = total * (i + 0.5) / n;
+      const img = await frameAt(t);
+      if (img) frames.push({t, img});
+    }
+    const parts = [{text:
+`あなたは日本のSNS動画（リール）の編集者です。以下は1本の動画（全体 ${total.toFixed(1)}秒）から等間隔で抜き出したコマです。各コマの時刻: ${frames.map(f=>f.t.toFixed(1)+"秒").join(", ")}。
+内容に合った短いテロップ案を3〜6個、JSON配列だけで返してください。他の文章は書かないでください。
+形式: [{"start":0,"end":3,"text":"テロップ文","pos":"bottom"}]
+ルール: startとendは0〜${total.toFixed(1)}の範囲・重ならない・textは15文字以内で親しみやすい話し言葉・posは"top"か"bottom"。`}];
+    for (const f of frames) parts.push({inline_data:{mime_type:"image/jpeg", data:f.img}});
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({contents:[{parts}]})
+    });
+    if (!r.ok) throw new Error("APIエラー（" + r.status + "）キーが正しいか確認してね");
+    const j = await r.json();
+    const text = (((j.candidates||[])[0]||{}).content||{}).parts?.map(p=>p.text||"").join("") || "";
+    const m = text.match(/\[[\s\S]*\]/);
+    if (!m) throw new Error("AIの返答を読み取れませんでした。もう一度試してね");
+    const arr = JSON.parse(m[0]);
+    for (const a of arr) addTelop({text:String(a.text||"").slice(0,40), start:a.start, end:a.end, pos:(a.pos==="top"?"top":"bottom"), style:"outline"});
+    msg.innerHTML = `<p class="ok">テロップ案を ${arr.length}個 追加しました！文字や時間は自由に直してね ✨</p>`;
+  }catch(e){
+    msg.innerHTML = `<p class="err">${esc(e.message||String(e))}</p>`;
+  }finally{
+    btn.disabled = false; btn.innerHTML = "🤖 AIにテロップ案をつくってもらう";
+  }
+}
+async function frameAt(gt){
+  const loc = locate(gt);
+  if (!loc) return null;
+  const c = loc.clip;
+  await seekTo(c.video, c.start + loc.local);
+  const cv = document.createElement("canvas");
+  const scale = 480 / Math.max(c.video.videoWidth, 1);
+  cv.width = Math.max(2, Math.round(c.video.videoWidth * scale));
+  cv.height = Math.max(2, Math.round(c.video.videoHeight * scale));
+  cv.getContext("2d").drawImage(c.video, 0, 0, cv.width, cv.height);
+  return cv.toDataURL("image/jpeg", .6).split(",")[1];
+}
+
+/* ============ タイムライン ============ */
+function totalDuration(){ return clips.reduce((s,c)=> s + (c.end - c.start), 0); }
+function locate(gt){
+  let acc = 0;
+  for (const c of clips){
+    const d = c.end - c.start;
+    if (gt < acc + d || c === clips[clips.length-1]) return {clip:c, local: Math.min(Math.max(gt-acc,0), d), base:acc};
+    acc += d;
+  }
+  return null;
+}
+
+/* ============ 描画 ============ */
+function stageSize(){
+  const mode = $("outSize").value;
+  if (mode === "916") return [1080,1920];
+  if (mode === "11")  return [1080,1080];
+  if (mode === "169") return [1920,1080];
+  const c = clips[0];
+  if (!c) return [1280,720];
+  let w = c.video.videoWidth || 1280, h = c.video.videoHeight || 720;
+  const cap = 1920 / Math.max(w,h);
+  if (cap < 1){ w = Math.round(w*cap); h = Math.round(h*cap); }
+  return [w - w%2, h - h%2];
+}
+function applyStageSize(){
+  const [w,h] = stageSize();
+  if (stage.width !== w || stage.height !== h){ stage.width = w; stage.height = h; }
+  stage.style.maxHeight = "420px";
+  stage.style.width = "auto";
+  stage.style.maxWidth = "100%";
+}
+function drawFit(g, v, W, H, fit, bg){
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  const vw = v.videoWidth || 16, vh = v.videoHeight || 9;
+  const s = fit === "cover" ? Math.max(W/vw, H/vh) : Math.min(W/vw, H/vh);
+  const dw = vw*s, dh = vh*s;
+  g.drawImage(v, (W-dw)/2, (H-dh)/2, dw, dh);
+}
+function drawFrame(v, gt){
+  drawFit(ctx, v, stage.width, stage.height, $("outFit").value, $("outBg").value);
+  drawTelops(gt);
+}
+function drawTelops(gt){
+  for (const t of telops){
+    if (gt < t.start || gt >= t.end || !t.text.trim()) continue;
+    drawTelop(t);
+  }
+}
+function drawTelop(t){
+  const W = stage.width, H = stage.height;
+  const sizeMap = {s:.042, m:.058, l:.078};
+  const px = Math.round(H * sizeMap[t.size || "m"]);
+  ctx.save();
+  ctx.font = `900 ${px}px 'M PLUS Rounded 1c','Hiragino Kaku Gothic ProN',sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const lines = t.text.split("\n").filter(l=>l.length);
+  const lh = px * 1.32;
+  const blockH = lh * lines.length;
+  let cy;
+  if (t.pos === "top") cy = H*0.10 + blockH/2;
+  else if (t.pos === "center") cy = H/2;
+  else cy = H*0.90 - blockH/2;
+
+  const band = (t.style==="yellow"||t.style==="pink"||t.style==="white");
+  if (band){
+    const maxW = Math.max(...lines.map(l=>ctx.measureText(l).width));
+    const padX = px*.55, padY = px*.28, r = px*.35;
+    const bw = Math.min(maxW + padX*2, W*.94), bh = blockH + padY*2;
+    ctx.fillStyle = t.style==="yellow" ? "#ffe94d" : t.style==="pink" ? "#f06ca8" : "rgba(255,255,255,.94)";
+    roundRect(ctx, W/2-bw/2, cy-bh/2, bw, bh, r);
+    ctx.fill();
+  }
+  lines.forEach((line,i)=>{
+    const y = cy - blockH/2 + lh*(i+0.5);
+    if (t.style === "outline"){
+      ctx.lineJoin = "round";
+      ctx.lineWidth = px*.22; ctx.strokeStyle = "#000";
+      ctx.strokeText(line, W/2, y, W*.94);
+      ctx.fillStyle = "#fff";
+    } else if (t.style === "shadow"){
+      ctx.shadowColor = "rgba(0,0,0,.75)"; ctx.shadowBlur = px*.25;
+      ctx.shadowOffsetX = px*.06; ctx.shadowOffsetY = px*.1;
+      ctx.fillStyle = "#fff";
+    } else if (t.style === "yellow"){ ctx.fillStyle = "#1f2330"; }
+    else if (t.style === "pink"){ ctx.fillStyle = "#fff"; }
+    else if (t.style === "white"){ ctx.fillStyle = "#e0447c"; }
+    ctx.fillText(line, W/2, y, W*.94);
+    ctx.shadowColor = "transparent";
+  });
+  ctx.restore();
+}
+function roundRect(g,x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+}
+async function drawAt(gt){
+  if (playing || exporting) return;
+  if (!clips.length) return;
+  applyStageSize();
+  const loc = locate(gt);
+  if (!loc) return;
+  await seekTo(loc.clip.video, loc.clip.start + loc.local);
+  drawFrame(loc.clip.video, gt);
+  $("timeLabel").textContent = fmt(gt) + " / " + fmt(totalDuration());
+}
+
+/* ============ 音声 ============ */
+let audioCtx = null, streamDest = null;
+const audioSrcMap = new WeakMap();
+function ensureAudio(){
+  if (!audioCtx){
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    streamDest = audioCtx.createMediaStreamDestination();
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  for (const c of clips){
+    if (!audioSrcMap.has(c.video)){
+      try{
+        const src = audioCtx.createMediaElementSource(c.video);
+        src.connect(audioCtx.destination);
+        src.connect(streamDest);
+        audioSrcMap.set(c.video, src);
+      }catch(e){}
+    }
+  }
+}
+
+/* ============ プレビュー再生 ============ */
+$("seekBar").addEventListener("input", ()=>{
+  stopPlayback();
+  globalTime = parseFloat($("seekBar").value);
+  drawAt(globalTime);
+});
+["outSize","outFit","outBg"].forEach(id => $(id).addEventListener("change", ()=>{ applyStageSize(); drawAt(globalTime); }));
+
+function togglePlay(){
+  if (playing){ stopPlayback(); return; }
+  playSequence(globalTime >= totalDuration() - 0.1 ? 0 : globalTime, false);
+}
+function stopPlayback(){
+  playing = false;
+  for (const c of clips) c.video.pause();
+  $("playBtn").textContent = "▶ 再生";
+}
+async function playSequence(from, record){
+  if (!clips.length) return;
+  applyStageSize();
+  ensureAudio();
+  playing = true;
+  $("playBtn").textContent = "⏸ 停止";
+  const startLoc = locate(from);
+  let acc = 0;
+  for (const c of clips){
+    const d = c.end - c.start;
+    if (!playing) break;
+    if (acc + d <= from - 0.01){ acc += d; continue; }
+    const localStart = c === startLoc.clip ? startLoc.local : 0;
+    // クリップ切り替えのシーク待ちが録画に入らないよう一時停止する
+    const rec = record && recorder && recorder.state === "recording";
+    if (rec) recorder.pause();
+    await seekTo(c.video, c.start + localStart);
+    try{ await c.video.play(); }catch(e){}
+    if (rec && recorder.state === "paused") recorder.resume();
+    await new Promise(res=>{
+      const base = acc;
+      function tick(){
+        if (!playing){ c.video.pause(); return res(); }
+        const lt = c.video.currentTime - c.start;
+        globalTime = base + Math.min(lt, d);
+        drawFrame(c.video, globalTime);
+        $("seekBar").max = totalDuration();
+        $("seekBar").value = globalTime;
+        $("timeLabel").textContent = fmt(globalTime) + " / " + fmt(totalDuration());
+        if (record && exporting) updateProg(globalTime);
+        if (c.video.currentTime >= c.end - 0.03 || c.video.ended){ c.video.pause(); return res(); }
+        requestAnimationFrame(tick);
+      }
+      tick();
+    });
+    acc += d;
+  }
+  const finished = playing;
+  playing = false;
+  $("playBtn").textContent = "▶ 再生";
+  if (finished){ globalTime = record ? totalDuration() : 0; }
+  return finished;
+}
+
+/* ============ 保存（書き出し） ============ */
+let recorder = null;
+function pickMime(){
+  const cands = [
+    'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+    "video/mp4",
+    'video/webm;codecs="h264,opus"',
+    'video/webm;codecs="vp9,opus"',
+    "video/webm",
+  ];
+  for (const m of cands) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+  return "";
+}
+async function exportVideo(){
+  if (!clips.length || exporting) return;
+  stopPlayback();
+  const mime = pickMime();
+  if (!mime){ $("exportMsg").innerHTML = `<p class="err">このブラウザは動画の保存に対応していません（ChromeかSafariで開いてね）</p>`; return; }
+  exporting = true;
+  $("exportBtn").disabled = true;
+  $("exportBtn").innerHTML = `<span class="spin"></span> 保存用に再生中…そのまま待っててね`;
+  $("cancelBtn").style.display = "";
+  $("progWrap").style.display = "";
+  $("resultBox").innerHTML = "";
+  $("exportMsg").innerHTML = "";
+  applyStageSize();
+  ensureAudio();
+  await drawAtForce(0);
+
+  const vStream = stage.captureStream(30);
+  const tracks = [...vStream.getVideoTracks(), ...streamDest.stream.getAudioTracks()];
+  const stream = new MediaStream(tracks);
+  const chunks = [];
+  recorder = new MediaRecorder(stream, {mimeType: mime, videoBitsPerSecond: 8_000_000});
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(res => recorder.onstop = res);
+  recorder.start(500);
+
+  const finished = await playSequence(0, true);
+
+  recorder.stop();
+  await stopped;
+  recorder = null;
+  exporting = false;
+  $("exportBtn").disabled = false;
+  $("exportBtn").innerHTML = "💾 動画を保存する";
+  $("cancelBtn").style.display = "none";
+  $("progWrap").style.display = "none";
+
+  if (!finished){ $("exportMsg").innerHTML = `<p class="muted">中止しました</p>`; return; }
+  const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+  const blob = new Blob(chunks, {type: mime.split(";")[0]});
+  const url = URL.createObjectURL(blob);
+  const d = new Date(), pad = n=>String(n).padStart(2,"0");
+  const fname = `編集動画_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.${ext}`;
+  $("resultBox").innerHTML = `
+    <p class="ok">できました！🎉 下の動画を確認して保存してね${ext==="webm" ? "（webm形式。インスタに上げる場合はそのままでもOK）" : ""}</p>
+    <video src="${url}" controls playsinline style="max-height:380px;margin:8px auto"></video>
+    <div style="margin-top:10px"><a class="btn" href="${url}" download="${fname}">⬇ ${fname} をダウンロード</a></div>`;
+  $("resultBox").scrollIntoView({behavior:"smooth"});
+}
+function cancelExport(){ stopPlayback(); }
+async function drawAtForce(gt){
+  const loc = locate(gt);
+  if (!loc) return;
+  await seekTo(loc.clip.video, loc.clip.start + loc.local);
+  drawFrame(loc.clip.video, gt);
+}
+function updateProg(t){
+  const p = Math.min(100, t / Math.max(totalDuration(), .1) * 100);
+  $("progBar").style.width = p + "%";
+}
+
+/* ============ UI全体 ============ */
+function refreshUI(){
+  const has = clips.length > 0;
+  $("trimCard").style.display = has ? "" : "none";
+  $("telopCard").style.display = has ? "" : "none";
+  $("exportCard").style.display = has ? "" : "none";
+  if (has){
+    $("seekBar").max = totalDuration();
+    $("timeLabel").textContent = fmt(globalTime) + " / " + fmt(totalDuration());
+    renderTelops();
+    drawAt(Math.min(globalTime, totalDuration()));
+  }
+}
+$("apiKey").value = localStorage.getItem("gemini_api_key") || "";
+renderTelops();
+</script>
+</body>
+</html>
