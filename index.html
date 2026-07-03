@@ -44,8 +44,11 @@
   .btn[disabled]{opacity:.5;cursor:not-allowed;filter:grayscale(.3)}
   .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
   .btn.sm{padding:7px 12px;font-size:13px;border-radius:10px}
-  .drop{border:2px dashed var(--line);border-radius:14px;padding:26px 14px;text-align:center;color:var(--sub);
-    cursor:pointer;transition:.15s;background:var(--soft)}
+  .drop{display:block;border:2px dashed var(--line);border-radius:14px;padding:26px 14px;text-align:center;color:var(--sub);
+    cursor:pointer;transition:.15s;background:var(--soft);-webkit-tap-highlight-color:rgba(124,108,240,.15)}
+  /* display:noneだと一部スマホでファイル選択が開かないため、見えないが有効な状態にする */
+  .vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .drop.on{border-color:var(--accent);background:#f3f0ff;color:var(--accent)}
   .clips{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
   .clip{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--soft);
@@ -107,10 +110,10 @@
   <section class="card">
     <h2><span class="num">1</span> 動画を追加する</h2>
     <p class="hint">複数えらべます。上から順につながります（順番はあとから入れかえOK）。動画はこの端末の中だけで処理され、どこにも送信されません。</p>
-    <div class="drop" id="drop" onclick="fileInput.click()">
+    <label class="drop" id="drop" for="fileInput">
       📹 ここをタップして動画をえらぶ（またはドラッグ＆ドロップ）
-    </div>
-    <input type="file" id="fileInput" accept="video/*" multiple style="display:none" />
+    </label>
+    <input type="file" id="fileInput" accept="video/*" multiple class="vh" />
     <div class="clips" id="clipList"></div>
   </section>
 
