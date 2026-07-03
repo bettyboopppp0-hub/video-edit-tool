@@ -777,8 +777,22 @@ $("seekBar").addEventListener("input", ()=>{
 });
 ["outSize","outFit","outBg"].forEach(id => $(id).addEventListener("change", ()=>{ applyStageSize(); drawAt(globalTime); }));
 
+// iPhone(Safari)対策: タップの瞬間に全クリップをいちど再生→即停止して「再生許可」を取っておく
+const unlockedVideos = new WeakSet();
+function unlockVideos(){
+  for (const c of clips){
+    if (unlockedVideos.has(c.video)) continue;
+    try{
+      const p = c.video.play();
+      c.video.pause();
+      if (p && p.catch) p.catch(()=>{});
+      unlockedVideos.add(c.video);
+    }catch(e){}
+  }
+}
 function togglePlay(){
   if (playing){ stopPlayback(); return; }
+  unlockVideos();
   playSequence(globalTime >= totalDuration() - 0.1 ? 0 : globalTime, false);
 }
 function stopPlayback(){
@@ -852,6 +866,7 @@ function pickMime(){
 async function exportVideo(){
   if (!clips.length || exporting) return;
   stopPlayback();
+  unlockVideos();
   const mime = pickMime();
   if (!mime){ $("exportMsg").innerHTML = `<p class="err">このブラウザは動画の保存に対応していません（ChromeかSafariで開いてね）</p>`; return; }
   exporting = true;
