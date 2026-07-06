@@ -534,7 +534,7 @@ ${sources.map((c,i)=>`動画${i+1}（全体 ${c.duration.toFixed(1)}秒）`).joi
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({contents:[{parts}]})
     });
-    if (!r.ok) throw new Error("APIエラー（" + r.status + "）キーが正しいか確認してね");
+    if (!r.ok) throw await apiError(r);
     const j = await r.json();
     const text = (((j.candidates||[])[0]||{}).content||{}).parts?.map(p=>p.text||"").join("") || "";
     const m = text.match(/\[[\s\S]*\]/);
@@ -581,6 +581,15 @@ function saveKey(){
   setTimeout(()=> $("keyMsg").textContent = "", 2500);
 }
 function getKey(){ return ($("apiKey").value || localStorage.getItem("gemini_api_key") || "").trim(); }
+/* APIエラーを状況別のわかりやすいメッセージにする */
+async function apiError(r){
+  let detail = "";
+  try{ const j = await r.json(); detail = (j.error && j.error.message) || ""; }catch(_){}
+  if (r.status === 429) return new Error("無料枠の回数制限に届きました（キーは合ってます🙆）。1〜2分待ってからもう一度押してみてね。それでもダメなら今日の無料回数を使い切った可能性→ 日本時間の夕方4時ごろにリセットされます");
+  if (r.status === 503 || r.status === 500) return new Error("AIが混み合っています💦 30秒〜1分待ってからもう一度試してね");
+  if (r.status === 400 || r.status === 403) return new Error("APIキーが正しくない可能性があります。「AI機能の設定」でキーを確認してね" + (detail ? "（詳細: " + detail.slice(0,120) + "）" : ""));
+  return new Error("APIエラー（" + r.status + "）" + (detail ? detail.slice(0,120) : "少し待ってからもう一度試してね"));
+}
 
 async function aiTelop(){
   const msg = $("aiTelopMsg");
@@ -609,7 +618,7 @@ async function aiTelop(){
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({contents:[{parts}]})
     });
-    if (!r.ok) throw new Error("APIエラー（" + r.status + "）キーが正しいか確認してね");
+    if (!r.ok) throw await apiError(r);
     const j = await r.json();
     const text = (((j.candidates||[])[0]||{}).content||{}).parts?.map(p=>p.text||"").join("") || "";
     const m = text.match(/\[[\s\S]*\]/);
