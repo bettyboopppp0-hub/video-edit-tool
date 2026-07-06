@@ -866,6 +866,14 @@ function pickMime(){
   for (const m of cands) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
   return "";
 }
+let lastBlob = null, lastFname = "";
+function resetExportUI(){
+  exporting = false;
+  $("exportBtn").disabled = false;
+  $("exportBtn").innerHTML = "💾 動画を保存する";
+  $("cancelBtn").style.display = "none";
+  $("progWrap").style.display = "none";
+}
 async function exportVideo(){
   if (!clips.length || exporting) return;
   stopPlayback();
@@ -879,41 +887,66 @@ async function exportVideo(){
   $("progWrap").style.display = "";
   $("resultBox").innerHTML = "";
   $("exportMsg").innerHTML = "";
-  applyStageSize();
-  ensureAudio();
-  await drawAtForce(0);
+  try{
+    applyStageSize();
+    ensureAudio();
+    await drawAtForce(0);
 
-  const vStream = stage.captureStream(30);
-  const tracks = [...vStream.getVideoTracks(), ...streamDest.stream.getAudioTracks()];
-  const stream = new MediaStream(tracks);
-  const chunks = [];
-  recorder = new MediaRecorder(stream, {mimeType: mime, videoBitsPerSecond: 8_000_000});
-  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
-  const stopped = new Promise(res => recorder.onstop = res);
-  recorder.start(500);
+    const vStream = stage.captureStream(30);
+    const tracks = [...vStream.getVideoTracks(), ...streamDest.stream.getAudioTracks()];
+    const stream = new MediaStream(tracks);
+    const chunks = [];
+    recorder = new MediaRecorder(stream, {mimeType: mime, videoBitsPerSecond: 8_000_000});
+    recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    const stopped = new Promise(res => recorder.onstop = res);
+    recorder.start(500);
 
-  const finished = await playSequence(0, true);
+    const finished = await playSequence(0, true);
 
-  recorder.stop();
-  await stopped;
-  recorder = null;
-  exporting = false;
-  $("exportBtn").disabled = false;
-  $("exportBtn").innerHTML = "💾 動画を保存する";
-  $("cancelBtn").style.display = "none";
-  $("progWrap").style.display = "none";
+    recorder.stop();
+    await stopped;
+    recorder = null;
+    resetExportUI();
 
-  if (!finished){ $("exportMsg").innerHTML = `<p class="muted">中止しました</p>`; return; }
-  const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
-  const blob = new Blob(chunks, {type: mime.split(";")[0]});
-  const url = URL.createObjectURL(blob);
-  const d = new Date(), pad = n=>String(n).padStart(2,"0");
-  const fname = `編集動画_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.${ext}`;
-  $("resultBox").innerHTML = `
-    <p class="ok">できました！🎉 下の動画を確認して保存してね${ext==="webm" ? "（webm形式。インスタに上げる場合はそのままでもOK）" : ""}</p>
-    <video src="${url}" controls playsinline style="max-height:380px;margin:8px auto"></video>
-    <div style="margin-top:10px"><a class="btn" href="${url}" download="${fname}">⬇ ${fname} をダウンロード</a></div>`;
-  $("resultBox").scrollIntoView({behavior:"smooth"});
+    if (!finished){ $("exportMsg").innerHTML = `<p class="muted">中止しました</p>`; return; }
+    const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+    const blob = new Blob(chunks, {type: mime.split(";")[0]});
+    if (!blob.size){
+      $("exportMsg").innerHTML = `<p class="err">録画データが空になってしまいました💦 もう一度「動画を保存する」を押してみてね。何回やってもダメな場合は、ブラウザ（Safari/Chrome）を最新にしてみてください。</p>`;
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const d = new Date(), pad = n=>String(n).padStart(2,"0");
+    const fname = `編集動画_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.${ext}`;
+    lastBlob = blob; lastFname = fname;
+    const canShareFile = (()=>{ try{
+      return !!(navigator.canShare && navigator.canShare({files:[new File([""], "t."+ext, {type: blob.type})]}));
+    }catch(_){ return false; } })();
+    $("resultBox").innerHTML = `
+      <p class="ok">できました！🎉 下の動画を確認して保存してね${ext==="webm" ? "（webm形式。インスタに上げる場合はそのままでもOK）" : ""}</p>
+      <video src="${url}" controls playsinline style="max-height:380px;margin:8px auto"></video>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        ${canShareFile ? `<button class="btn" onclick="shareVideo(this)">📤 スマホの写真に保存する</button>` : ""}
+        <a class="btn ${canShareFile ? "ghost" : ""}" href="${url}" download="${fname}">⬇ ファイルとしてダウンロード</a>
+      </div>
+      ${canShareFile ? `<p class="hint" style="text-align:center;margin-top:8px">「📤 スマホの写真に保存する」→ 出てきたメニューで「ビデオを保存」を選ぶと写真アプリに入ります📱</p>` : ""}`;
+    $("resultBox").scrollIntoView({behavior:"smooth"});
+  }catch(e){
+    try{ if (recorder && recorder.state !== "inactive") recorder.stop(); }catch(_){}
+    recorder = null;
+    resetExportUI();
+    $("exportMsg").innerHTML = `<p class="err">保存中にエラーが起きました💦（${esc(String((e && e.message) || e))}）<br>もう一度試すか、SafariかChromeで開き直してみてね。</p>`;
+  }
+}
+async function shareVideo(btn){
+  if (!lastBlob) return;
+  const file = new File([lastBlob], lastFname, {type: lastBlob.type});
+  try{
+    await navigator.share({files:[file]});
+  }catch(e){
+    if (e && e.name === "AbortError") return; // ユーザーがキャンセルしただけ
+    btn.textContent = "共有できませんでした→下のダウンロードを使ってね";
+  }
 }
 function cancelExport(){ stopPlayback(); }
 async function drawAtForce(gt){
@@ -942,6 +975,18 @@ function refreshUI(){
 }
 $("apiKey").value = localStorage.getItem("gemini_api_key") || "";
 renderTelops();
+
+/* LINE・インスタ等のアプリ内ブラウザでは動画の保存ができないため案内を出す */
+(function(){
+  const ua = navigator.userAgent || "";
+  if (/Line\/|Instagram|FBAN|FBAV|FB_IAB|Twitter/i.test(ua)) {
+    const warn = document.createElement("div");
+    warn.style.cssText = "background:#fef3c7;border:1.5px solid #fcd34d;border-radius:12px;padding:12px 14px;margin:10px 0;font-size:13.5px;font-weight:700;color:#92400e";
+    warn.innerHTML = "⚠️ アプリの中のブラウザで開いているみたい！このままだと動画が保存できません。<br>右下の「…」や共有ボタンから <u>「Safariで開く」「ブラウザで開く」</u> を選んでから使ってね📱";
+    const main = document.querySelector("main");
+    main.insertBefore(warn, main.firstChild);
+  }
+})();
 </script>
 </body>
 </html>
